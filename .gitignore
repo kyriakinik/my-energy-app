@@ -1,0 +1,24 @@
+# Operating System files
+Thumbs.db
+.DS_Store
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.iml
+
+# Node / Angular (για το Frontend που θα φτιάξουμε σε λίγο)
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# Java / Gradle (για το Backend)
+backend/.gradle/
+backend/build/
+backend/bin/
+
+# Environment files with sensitive credentials (αν έχεις κλειδιά/passwords)
+# .env
+
+# Docker data / logs
+*.log

@@ -1,0 +1,2 @@
+CREATE USER tutorial WITH ENCRYPTED PASSWORD 'tutorial';
+CREATE DATABASE tutorial OWNER tutorial;
