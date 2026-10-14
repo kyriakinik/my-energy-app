@@ -69,3 +69,71 @@
   `curl.exe -s http://localhost:9090/outbound-connectors/rest/agnostic/connection-status-messages`
 - Χρήση του `ConvertFrom-Json` στο PowerShell (το αντίστοιχο του εργαλείου `jq` των Linux/Mac) για μορφοποίηση των δεδομένων (pretty-printing):
   `curl.exe -s http://localhost:9090/outbound-connectors/rest/agnostic/connection-status-messages | ConvertFrom-Json`
+
+
+ ## Day 5 — Application Skeleton (Full-Stack Setup)
+
+### 1. Αρχιτεκτονική Επισκόπηση & Ροή Δεδομένων
+
+```text
+[ Browser / Angular Frontend ] (port 4200)
+       │  ▲
+       │  │ 1. OIDC Login / Redirect (PKCE)
+       ▼  │ 2. Έκδοση JWT Bearer Token
+[ Keycloak IAM Server ] (port 8888)
+       
+       │
+       │ 3. HTTP GET /api/me (Header: Authorization: Bearer <JWT>)
+       ▼
+[ Spring Boot Backend ] (port 8082 - OAuth2 Resource Server)
+       │  ▲
+       │  │ (Επαλήθευση JWT μέσω Keycloak Issuer URI)
+       ▼  │
+[ PostgreSQL Database ] (port 5432 - Database: tutorial)
+
+       ▲
+       │ 4. Φόρτωση Web Component (<eddie-connect-button>)
+[ EDDIE Core Service ] (port 8080)
+```
+
+---
+
+### 2. Βασικές Έννοιες & Ορολογία
+
+* **Keycloak (IAM - Identity & Access Management):** 
+  * Λειτουργεί ως Authorization Server για OpenID Connect / OAuth2. Αναλαμβάνει τη διαχείριση χρηστών, σελίδες login/registration και έκδοση ψηφιακά υπογεγραμμένων JWT tokens.
+* **Realm (`tutorial-realm`):** 
+  * Ένας αυτόνομος χώρος ασφαλείας (security domain/tenant) μέσα στο Keycloak, απομονωμένος από το `master` realm.
+* **Public Client vs Confidential Client:** 
+  * Η **Angular** είναι Single Page Application (SPA) που τρέχει στον browser του χρήστη, επομένως δεν μπορεί να αποκρύψει με ασφάλεια μυστικό κλειδί (Client Secret). Ορίζεται ως `publicClient: true` και προστατεύεται μέσω **PKCE** (Proof Key for Code Exchange) και αυστηρών `redirectUris`.
+* **OAuth2 Resource Server:** 
+  * Ο ρόλος του Spring Boot backend. Δεν διατηρεί session (stateless), αλλά επαληθεύει την υπογραφή του Bearer JWT token μέσω του Keycloak issuer URI.
+* **Web Components (`<eddie-connect-button>`):** 
+  * Custom HTML στοιχείο που σερβίρεται αυτόνομα από το EDDIE Core (`/lib/eddie-components.js`). Ενσωματώνεται στην Angular με χρήση του `CUSTOM_ELEMENTS_SCHEMA`.
+
+---
+
+### 3. Τεχνικά Βήματα Υλοποίησης
+
+#### Α. Υποδομή Docker (`docker-compose.yml` & `keycloak.json`)
+* **Keycloak Service:** Image `quay.io/keycloak/keycloak:26.6.0`, port mapping `8888:8080`, αυτόματη εισαγωγή realm μέσω mount του `keycloak.json` στο `/opt/keycloak/data/import/realm.json:ro`.
+* **Database Setup (`db.sql`):** Δημιουργία ξεχωριστής βάσης και χρήστη `tutorial` στην PostgreSQL, και έκθεση της θύρας `5432:5432`.
+
+#### Β. Spring Boot Backend (`backend/`)
+* **Τεχνολογίες:** Java 21 LTS, Spring Boot, Gradle, Spring Security OAuth2 Resource Server, Spring Data JPA, PostgreSQL Driver.
+* **Ρυθμίσεις (`application.properties`):** Θύρα λειτουργίας `8082`, ορισμός `issuer-uri` στο Keycloak (`http://localhost:8888/realms/tutorial-realm`), σύνδεση στη βάση `tutorial`.
+* **Ασφάλεια & Endpoints:** Δημιουργία `SecurityConfig.java` (JWT authentication & CORS) και `UserController.java` με προστατευμένο endpoint `/api/me` που διαβάζει τα claims του χρήστη μέσω `@AuthenticationPrincipal Jwt jwt`.
+
+#### Γ. Angular Frontend (`frontend/`)
+* **Τεχνολογίες:** Angular 19/20, βιβλιοθήκη `keycloak-js`.
+* **Εκκίνηση (`main.ts`):** Αρχικοποίηση του Keycloak με `login-required` πριν το `bootstrapApplication`.
+* **Component (`app.ts` & `app.html`):** Κλήση του `/api/me` με `Authorization: Bearer <token>`, ενημέρωση reactive signal `name`, προσθήκη `CUSTOM_ELEMENTS_SCHEMA` και προβολή του `<eddie-connect-button>`.
+
+---
+
+### 4. Επιβεβαίωση Checkpoints (Day 5)
+
+- [x] Αυτόματο redirect στο Keycloak και επιτυχές login με τον χρήστη `eddie`.
+- [x] Ανάκτηση και εμφάνιση του ονόματος ("Hello, Eddie Eddington!") από το backend.
+- [x] Επιτυχής φόρτωση και απόδοση του EDDIE Connect Web Component στο UI.
+- [x] Version Control: Αποθήκευση και συγχρονισμός όλων των αλλαγών στο GitHub.
