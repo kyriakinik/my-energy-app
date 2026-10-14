@@ -1,0 +1,23 @@
+import { Component, OnInit, signal, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { keycloak } from '../main';
+
+@Component({
+    selector: 'app-root',
+    schemas: [CUSTOM_ELEMENTS_SCHEMA],
+    templateUrl: './app.html',
+    styleUrl: './app.css',
+})
+export class App implements OnInit {
+    name = signal('stranger');
+
+    ngOnInit() {
+        fetch('http://localhost:8082/api/me', {
+            headers: {
+                Authorization: `Bearer ${keycloak.token}`,
+            },
+        })
+            .then((response) => response.json())
+            .then((data) => this.name.set(data.name))
+            .catch((err) => console.error(err));
+    }
+}
