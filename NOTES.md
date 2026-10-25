@@ -137,3 +137,86 @@
 - [x] Ανάκτηση και εμφάνιση του ονόματος ("Hello, Eddie Eddington!") από το backend.
 - [x] Επιτυχής φόρτωση και απόδοση του EDDIE Connect Web Component στο UI.
 - [x] Version Control: Αποθήκευση και συγχρονισμός όλων των αλλαγών στο GitHub.
+
+---
+
+## Day 6 — User-Bound Connections (Συνδέσεις Δεδομένων ανά Χρήστη)
+
+### 1. Τι πετύχαμε σήμερα (Checkpoints):
+- Μετατρέψαμε τις ανώνυμες/στατικές συνδέσεις σε προσωποποιημένες (User-Bound): κάθε άδεια ενέργειας συσχετίζεται πλέον με το μοναδικό Keycloak User ID.
+- Δημιουργήσαμε το πλήρες persistence layer στο Spring Boot (Entity, Repository, Service, Controller).
+- Ενσωματώσαμε μηχανισμό πραγματικού χρόνου (Server-Sent Events streaming) μέσω του reactive `WebClient`.
+- Επιβεβαιώσαμε end-to-end τη ροή: πάτημα κουμπιού -> καταγραφή στο EDDIE -> λήψη status message -> αποθήκευση στην PostgreSQL -> εμφάνιση της ενεργής σύνδεσης (`CREATED`) στο Angular UI.
+
+---
+
+### 2. Αρχιτεκτονική Επισκόπηση & Ροή Δεδομένων
+
+```text
+[ Browser / Angular Frontend ] (port 4200)
+       │
+       │ 1. Ο χρήστης πατάει το κουμπί: <eddie-connect-button [attr.connection-id]="userId()">
+       ▼
+[ EDDIE Framework Service ] (port 8080/9090)
+       │
+       │ 2. Ολοκλήρωση ροής συγκατάθεσης (Consent Flow)
+       │ 3. Εκπομπή Server-Sent Event (SSE): { connectionId: "userId", permissionId: "pm::...", status: "CREATED" }
+       ▼
+[ Spring Boot Backend ] (port 8082)
+       │
+       │ 4. EddieRestClient: Λήψη του SSE stream μέσω reactive WebClient
+       │ 5. UserConnectionService: Επεξεργασία και mapping του μηνύματος
+       │ 6. UserConnectionRepository: Αποθήκευση/ενημέρωση της οντότητας UserConnection
+       ▼
+[ PostgreSQL Database ] (port 5432 - DB: tutorial, Table: user_connection)
+       │
+       ▲ 7. HTTP GET /api/connections (με Bearer JWT Token)
+       │
+[ Angular Frontend ] -> Ανάκτηση και προβολή της λίστας συνδέσεων (@if / @for) με Status: CREATED!
+```
+
+---
+
+### 3. Βασικές Έννοιες & Θεωρία (Java & Spring Boot)
+
+* **User-Bound Connection:**
+  * Η σύνδεση της ενεργειακής άδειας (permission) με τη μοναδική ταυτότητα του συνδεδεμένου χρήστη (`userId` από το Keycloak), αντί για στατικό/ανώνυμο αναγνωριστικό.
+* **Server-Sent Events (SSE):**
+  * Πρωτόκολλο μονόδρομης ροής δεδομένων (HTTP streaming με MIME type `text/event-stream`). Ο server διατηρεί τη σύνδεση ανοιχτή και προωθεί γεγονότα σε πραγματικό χρόνο χωρίς να απαιτείται συνεχές polling.
+* **Reactive WebClient & Flux:**
+  * Ο μη-μπλοκάρον (non-blocking) HTTP client του Spring WebFlux. Το `Flux` αντιπροσωπεύει έναν ασύγχρονο κυλιόμενο διάδρομο δεδομένων (0..N στοιχεία) που διαβάζει τα μηνύματα του EDDIE χωρίς να παγώνει threads.
+* **Java Records (`ConnectionStatusMessage.java`):**
+  * Ειδικός τύπος κλάσης για αμετάβλητα δεδομένα (Immutable Data Carriers / DTOs). Αντικαθιστά δεκάδες γραμμές κλασικού boilerplate κώδικα (getters, constructors, `equals`, `hashCode`, `toString`).
+* **Entity & Spring Data JPA (`UserConnection.java` & `UserConnectionRepository.java`):**
+  * `@Entity`: Αντιστοιχίζει την κλάση Java σε πίνακα PostgreSQL (`user_connection`).
+  * `JpaRepository<UserConnection, String>`: Παράγει αυτόματα στο παρασκήνιο τα SQL queries.
+  * Derived Query Method: Η δήλωση `findAllByUserId(String userId)` μεταφράζεται αυτόματα σε `SELECT * FROM user_connection WHERE user_id = ?`.
+* **Service Layer & `@PostConstruct` (`UserConnectionService.java`):**
+  * Διαχωρισμός επιχειρησιακής λογικής. Η μέθοδος με annotation `@PostConstruct` εκτελείται αυτόματα μία φορά κατά την εκκίνηση του backend και συνδέεται στη ροή μηνυμάτων του EDDIE.
+* **Controller Security & Claims (`UserController.java`):**
+  * Μέσω του `@AuthenticationPrincipal Jwt jwt`, το Spring Boot αντλεί απευθείας το Keycloak User ID (`jwt.getSubject()`), εξασφαλίζοντας ότι κάθε χρήστης έχει πρόσβαση αποκλειστικά στις δικές του συνδέσεις.
+
+---
+
+### 4. Τεχνικά Βήματα Υλοποίησης
+
+#### Α. Backend (`backend/src/main/java/energy/eddie/tutorial/backend/`)
+* **`UserConnection.java`:** JPA Entity με πεδία `id` (UUID), `userId`, `permissionId`, `dataNeedId`, `status`.
+* **`UserConnectionRepository.java`:** Interface που επεκτείνει το `JpaRepository` με τις μεθόδους `findAllByUserId` και `findByPermissionId`.
+* **`ConnectionStatusMessage.java`:** Java Record για τη μοντελοποίηση των εισερχόμενων μηνυμάτων SSE από το EDDIE.
+* **`EddieRestClient.java`:** Reactive WebClient component που συνδέεται στο `http://localhost:9090/outbound-connectors/rest/agnostic/connection-status-messages`.
+* **`UserConnectionService.java`:** Service που διαχειρίζεται τα μηνύματα, αποθηκεύει/ενημερώνει συνδέσεις στη βάση και παρέχει μέθοδο ανάκτησης ανά χρήστη.
+* **`UserController.java`:** Εμπλουτισμός με το endpoint `GET /api/connections` που επιστρέφει τις συνδέσεις του συνδεδεμένου χρήστη.
+
+#### Β. Frontend (`frontend/src/app/`)
+* **`app.ts`:** Προσθήκη reactive signals (`userId`, `connections`) και συνάρτησης `updateConnections()` για αυτόματη ανάκτηση των συνδέσεων μετά το login.
+* **`app.html`:** Δυναμική σύνδεση του κουμπιού EDDIE (`[attr.connection-id]="userId()"`) και προβολή της λίστας συνδέσεων με `@if` / `@for`.
+
+---
+
+### 5. Επιβεβαίωση Checkpoints (Day 6)
+- [x] Το `<eddie-connect-button>` δέχεται δυναμικά το Keycloak User ID ως `connection-id`.
+- [x] Επιτυχής εκτέλεση του consent flow στον Simulation connector του EDDIE.
+- [x] Λήψη του Server-Sent Event από το backend και αποθήκευση της νέας εγγραφής στην PostgreSQL (`tutorial`).
+- [x] Εμφάνιση της σύνδεσης στην οθόνη του χρήστη με έγκυρο `permissionId` και `Status: CREATED`.
+- [x] Version Control: Αποθήκευση και συγχρονισμός όλων των αλλαγών της ημέρας στο GitHub.
