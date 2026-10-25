@@ -17,18 +17,20 @@
 
 Το σύστημα απαρτίζεται από τρία βασικά επίπεδα (Layers):
 
-```
+```text
 +--------------------------------------------------------------------------+
 |                        Frontend (Angular 19+)                            |
 |  - Keycloak JS (OAuth2 / OIDC Login)                                     |
 |  - EDDIE Connect Button (<eddie-connect-button> Web Component)           |
+|  - Προβολή ενεργών συνδέσεων χρήστη σε πραγματικό χρόνο                  |
 +------------------------------------+-------------------------------------+
                                      |
                                      v
 +------------------------------------+-------------------------------------+
 |                     Backend (Spring Boot 3)                              |
 |  - OAuth2 Resource Server (JWT verification μέσω Keycloak)               |
-|  - Spring Data JPA / REST APIs                                           |
+|  - Reactive WebClient (Server-Sent Events streaming από το EDDIE)        |
+|  - Spring Data JPA / REST APIs (/api/me, /api/connections)               |
 +------------------------------------+-------------------------------------+
                                      |
                                      v
@@ -54,6 +56,11 @@
   - Ενσωμάτωση **Keycloak** (Tutorial Realm, Client, Users) για authentication.
   - Δημιουργία **Spring Boot Backend** (OAuth2 Resource Server, DB integration).
   - Δημιουργία **Angular Frontend** με προστατευμένο login και ενσωμάτωση του EDDIE button.
+- [x] **Day 6 — User-Bound Connections**:
+  - Δυναμική συσχέτιση αδειών με τον συνδεδεμένο χρήστη (Keycloak User ID ως `connection-id`).
+  - Ανάπτυξη Persistence Layer στο Backend (Entity `UserConnection`, Spring Data `UserConnectionRepository`).
+  - Υλοποίηση streaming πραγματικού χρόνου (Server-Sent Events) με `WebClient` και Java Record `ConnectionStatusMessage`.
+  - Εμπλουτισμός του Angular UI με αυτόματη φόρτωση και προβολή των ενεργών συνδέσεων (`CREATED`).
 
 ---
 
@@ -89,7 +96,7 @@ npm start
 ## 📚 Τεχνολογίες & Πρότυπα
 * **Data Space Protocols**: EDDIE Framework, IEC Common Information Model (CIM)
 * **Security & Auth**: OAuth 2.0, OpenID Connect (OIDC), JWT, Keycloak
-* **Backend**: Java, Spring Boot 3, Spring Security, Spring Data JPA, Hibernate, PostgreSQL
-* **Frontend**: TypeScript, Angular, HTML5 Custom Web Components
+* **Backend**: Java 21, Spring Boot 3, Spring Security, Spring Data JPA, Reactive WebClient, Hibernate, PostgreSQL
+* **Frontend**: TypeScript, Angular 19+, HTML5 Custom Web Components (SSE Data Binding)
 * **Message Brokers**: Apache Kafka, RabbitMQ (AMQP 1.0)
 * **DevOps**: Docker, Docker Compose
